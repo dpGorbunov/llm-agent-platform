@@ -21,15 +21,22 @@ DEFAULT_TIMEOUT = 30.0
 class OpenRouterClient:
     """Async client for OpenRouter API."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        base_url: str = OPENROUTER_BASE_URL,
+        api_key: str = "",
+    ) -> None:
+        self._base_url = base_url
+        self._api_key = api_key
         self._client = httpx.AsyncClient(
-            base_url=OPENROUTER_BASE_URL,
+            base_url=base_url,
             timeout=httpx.Timeout(DEFAULT_TIMEOUT, connect=10.0),
         )
 
     def _headers(self) -> dict[str, str]:
+        key = self._api_key or settings.OPENROUTER_API_KEY
         return {
-            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         }
 

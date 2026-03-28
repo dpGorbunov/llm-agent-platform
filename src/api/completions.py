@@ -1,4 +1,4 @@
-"""POST /v1/chat/completions - OpenAI-compatible proxy to OpenRouter."""
+"""POST /v1/chat/completions - OpenAI-compatible proxy with load balancing."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ if TYPE_CHECKING:
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from src.providers.openrouter import UpstreamError, openrouter_client
+from src.balancer.router import model_router
+from src.core.config import settings
+from src.providers.openrouter import OpenRouterClient, UpstreamError
 from src.schemas.openai import ChatCompletionRequest  # noqa: TC001
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,11 @@ router = APIRouter()
 
 @router.post("/v1/chat/completions", response_model=None)
 async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse | JSONResponse:
+    provider = await model_router.route(request.model)
+
+    api_key = provider.api_key or settings.OPENROUTER_API_KEY
+    client = OpenRouterClient(base_url=provider.base_url, api_key=api_key)
+
     kwargs = {}
     for field in ("temperature", "max_tokens", "top_p", "frequency_penalty",
                   "presence_penalty", "stop"):
@@ -33,7 +40,7 @@ async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse 
     messages = [m.model_dump(exclude_none=True) for m in request.messages]
 
     try:
-        result = await openrouter_client.chat_completion(
+        result = await client.chat_completion(
             messages=messages,
             model=request.model,
             stream=request.stream,
@@ -45,6 +52,8 @@ async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse 
         raise HTTPException(status_code=504, detail="Upstream timeout") from exc
     except httpx.ConnectError as exc:
         raise HTTPException(status_code=502, detail="Cannot connect to upstream") from exc
+    finally:
+        await client.close()
 
     if request.stream:
         return StreamingResponse(
