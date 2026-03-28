@@ -7,7 +7,11 @@ from src.api.agents import router as agents_router
 from src.api.completions import router as completions_router
 from src.api.metrics_endpoint import router as metrics_router
 from src.api.providers import router as providers_router
+from src.auth.middleware import AuthMiddleware
 from src.core.config import settings
+from src.guardrails.pipeline import GuardrailsPipeline
+from src.guardrails.prompt_injection import PromptInjectionGuardrail
+from src.guardrails.secret_leak import SecretLeakGuardrail
 from src.providers.seed import seed_providers
 from src.telemetry.logging import configure_logging
 from src.telemetry.middleware import TracingMiddleware
@@ -15,6 +19,11 @@ from src.telemetry.setup import init_telemetry
 
 configure_logging(level=settings.LOG_LEVEL)
 init_telemetry()
+
+guardrails_pipeline = GuardrailsPipeline(
+    guardrails=[PromptInjectionGuardrail(), SecretLeakGuardrail()],
+    enabled=settings.GUARDRAILS_ENABLED,
+)
 
 
 @asynccontextmanager
@@ -30,6 +39,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(AuthMiddleware)
 app.add_middleware(TracingMiddleware)
 app.include_router(completions_router)
 app.include_router(metrics_router)

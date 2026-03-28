@@ -23,8 +23,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _get_guardrails_pipeline():  # noqa: ANN202
+    """Lazy import to avoid circular dependency."""
+    from src.main import guardrails_pipeline  # noqa: PLC0415
+    return guardrails_pipeline
+
+
 @router.post("/v1/chat/completions", response_model=None)
 async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse | JSONResponse:
+    messages = [m.model_dump(exclude_none=True) for m in request.messages]
+
+    pipeline = _get_guardrails_pipeline()
+    block = await pipeline.check_request(messages)
+    if block is not None:
+        logger.warning("Request blocked: %s", block.reason)
+        raise HTTPException(status_code=400, detail=block.reason)
+
     provider = await model_router.route(request.model)
 
     api_key = provider.api_key or settings.OPENROUTER_API_KEY
@@ -36,8 +50,6 @@ async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse 
         value = getattr(request, field, None)
         if value is not None:
             kwargs[field] = value
-
-    messages = [m.model_dump(exclude_none=True) for m in request.messages]
 
     try:
         result = await client.chat_completion(
@@ -65,7 +77,14 @@ async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse 
             },
         )
 
-    return JSONResponse(content=result)  # type: ignore[arg-type]
+    response_content: dict = result  # type: ignore[assignment]
+    text = _extract_response_text(response_content)
+    if text:
+        masked_text, flagged = await pipeline.check_response(text)
+        if flagged is not None:
+            response_content = _replace_response_text(response_content, masked_text)
+
+    return JSONResponse(content=response_content)
 
 
 async def _safe_stream(source: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
@@ -90,3 +109,25 @@ def _map_upstream_error(exc: UpstreamError) -> HTTPException:
     if exc.status_code >= 500:
         return HTTPException(status_code=502, detail="Upstream server error")
     return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _extract_response_text(response: dict) -> str:
+    """Extract assistant text from OpenAI-format response."""
+    try:
+        choices = response.get("choices", [])
+        if choices:
+            return choices[0].get("message", {}).get("content", "") or ""
+    except (IndexError, AttributeError, TypeError):
+        pass
+    return ""
+
+
+def _replace_response_text(response: dict, new_text: str) -> dict:
+    """Return a copy of the response with the first choice's content replaced."""
+    import copy  # noqa: PLC0415
+    result = copy.deepcopy(response)
+    try:
+        result["choices"][0]["message"]["content"] = new_text
+    except (IndexError, KeyError, TypeError):
+        pass
+    return result

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -9,6 +11,9 @@ from src.providers.models import Provider
 from src.providers.registry import ProviderRegistry, provider_registry
 from src.registry.agent_registry import AgentRegistry
 from src.schemas.agent import AgentCreate
+
+MASTER_TOKEN = "test-master-token"
+AUTH_HEADERS = {"Authorization": f"Bearer {MASTER_TOKEN}"}
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +86,14 @@ class TestAgentAPI:
 
         agent_registry._agents.clear()
         transport = ASGITransport(app=app)  # type: ignore[arg-type]
-        return AsyncClient(transport=transport, base_url="http://test")
+        with patch("src.auth.middleware.validate_token") as mock_validate:
+            from src.auth.token_store import TokenInfo
+            mock_validate.return_value = TokenInfo(
+                token=MASTER_TOKEN, agent_id=None, is_master=True,
+            )
+            yield AsyncClient(
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS,
+            )
 
     async def test_register_and_list(self, client: AsyncClient) -> None:
         resp = await client.post(
@@ -160,7 +172,14 @@ class TestProviderAPI:
 
         provider_registry._providers.clear()
         transport = ASGITransport(app=app)  # type: ignore[arg-type]
-        return AsyncClient(transport=transport, base_url="http://test")
+        with patch("src.auth.middleware.validate_token") as mock_validate:
+            from src.auth.token_store import TokenInfo
+            mock_validate.return_value = TokenInfo(
+                token=MASTER_TOKEN, agent_id=None, is_master=True,
+            )
+            yield AsyncClient(
+                transport=transport, base_url="http://test", headers=AUTH_HEADERS,
+            )
 
     async def test_register_and_list(self, client: AsyncClient) -> None:
         resp = await client.post(
