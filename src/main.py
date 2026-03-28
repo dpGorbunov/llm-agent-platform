@@ -4,13 +4,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.api.completions import router as completions_router
-from src.providers.openrouter import openrouter_client
+from src.api.metrics_endpoint import router as metrics_router
+from src.core.config import settings
+from src.providers.seed import seed_providers
+from src.telemetry.logging import configure_logging
+from src.telemetry.middleware import TracingMiddleware
+from src.telemetry.setup import init_telemetry
+
+configure_logging(level=settings.LOG_LEVEL)
+init_telemetry()
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    await seed_providers()
     yield
-    await openrouter_client.close()
 
 
 app = FastAPI(
@@ -20,7 +28,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(TracingMiddleware)
 app.include_router(completions_router)
+app.include_router(metrics_router)
 
 
 @app.get("/health")
