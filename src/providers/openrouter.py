@@ -58,7 +58,7 @@ class OpenRouterClient:
             "stream": stream,
         }
         for key in ("temperature", "max_tokens", "top_p", "frequency_penalty",
-                     "presence_penalty", "stop"):
+                     "presence_penalty", "stop", "tools", "tool_choice"):
             if key in kwargs and kwargs[key] is not None:
                 payload[key] = kwargs[key]
 

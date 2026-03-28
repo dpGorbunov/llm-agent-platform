@@ -6,11 +6,15 @@ from pydantic import BaseModel, Field
 
 
 class Message(BaseModel):
+    model_config = {"extra": "allow"}
+
     role: str
     content: str | None = None
 
 
 class ChatCompletionRequest(BaseModel):
+    model_config = {"extra": "allow"}
+
     model: str
     messages: list[Message]
     stream: bool = False
@@ -20,6 +24,8 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: float | None = None
     presence_penalty: float | None = None
     stop: str | list[str] | None = None
+    tools: list[dict] | None = None
+    tool_choice: str | dict | None = None
 
 
 class Usage(BaseModel):

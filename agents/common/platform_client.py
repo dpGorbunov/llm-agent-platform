@@ -83,6 +83,7 @@ class PlatformClient:
         messages: list[dict[str, Any]],
         model: str = "deepseek/deepseek-chat",
         stream: bool = False,
+        **kwargs: Any,
     ) -> dict[str, Any] | AsyncGenerator[bytes, None]:
         """Send chat completion request through the platform proxy."""
         if self._agent_token is None:
@@ -94,6 +95,7 @@ class PlatformClient:
             "model": model,
             "messages": messages,
             "stream": stream,
+            **kwargs,
         }
 
         if stream:

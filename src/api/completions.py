@@ -57,7 +57,7 @@ async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse 
 
     kwargs = {}
     for field in ("temperature", "max_tokens", "top_p", "frequency_penalty",
-                  "presence_penalty", "stop"):
+                  "presence_penalty", "stop", "tools", "tool_choice"):
         value = getattr(request, field, None)
         if value is not None:
             kwargs[field] = value

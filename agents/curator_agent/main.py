@@ -83,10 +83,14 @@ SYSTEM_PROMPT = (
 # --- Local tool implementations (deterministic, no LLM) ---
 
 def _tool_compare(items: list[str]) -> str:
-    header = "| Item | Category | Key Feature |"
-    separator = "|------|----------|-------------|"
-    rows = [f"| {item} | - | - |" for item in items]
-    return "\n".join([header, separator, *rows])
+    header = "| Item | Description |"
+    separator = "|------|-------------|"
+    rows = [f"| {item} | A popular technology/concept |" for item in items]
+    table = "\n".join([header, separator, *rows])
+    return (
+        f"Comparison table for: {', '.join(items)}\n{table}\n"
+        "Use this table as a basis for your detailed comparison."
+    )
 
 
 def _tool_summarize(text: str) -> str:
@@ -205,6 +209,7 @@ async def run(body: RunRequest) -> RunResponse:
         result: dict[str, Any] = await _platform.chat(
             messages=_sessions[session_id],
             model=MODEL,
+            tools=TOOLS_SPEC,
         )
 
         choice = result["choices"][0]
