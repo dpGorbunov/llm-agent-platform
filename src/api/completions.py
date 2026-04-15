@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 import contextlib
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.balancer.router import model_router
@@ -44,8 +44,9 @@ def _get_guardrails_pipeline():  # noqa: ANN202
 
 
 @router.post("/v1/chat/completions", response_model=None)
-async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse | JSONResponse:
+async def chat_completions(request: ChatCompletionRequest, raw_request: Request) -> StreamingResponse | JSONResponse:
     messages = [m.model_dump(exclude_none=True) for m in request.messages]
+    session_id = raw_request.headers.get("x-session-id")
 
     pipeline = _get_guardrails_pipeline()
     block = await pipeline.check_request(messages)
@@ -117,6 +118,7 @@ async def chat_completions(request: ChatCompletionRequest) -> StreamingResponse 
         tokens_out=usage.get("completion_tokens", 0),
         cost=usage.get("cost", 0),
         provider=provider.name,
+        session_id=session_id,
         start_time=dt_start,
         end_time=dt_end,
     )

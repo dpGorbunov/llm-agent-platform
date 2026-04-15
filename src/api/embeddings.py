@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from src.balancer.router import model_router
@@ -26,7 +26,8 @@ router = APIRouter()
 
 
 @router.post("/v1/embeddings", response_model=None)
-async def embeddings(request: EmbeddingRequest) -> JSONResponse:
+async def embeddings(request: EmbeddingRequest, raw_request: Request) -> JSONResponse:
+    session_id = raw_request.headers.get("x-session-id")
     provider = await model_router.route(request.model)
 
     api_key = provider.api_key or settings.OPENROUTER_API_KEY
@@ -78,6 +79,7 @@ async def embeddings(request: EmbeddingRequest) -> JSONResponse:
         duration=duration,
         tokens=usage.get("total_tokens", 0),
         provider=provider.name,
+        session_id=session_id,
         start_time=dt_start,
         end_time=dt_end,
     )

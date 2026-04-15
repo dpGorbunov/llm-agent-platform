@@ -105,6 +105,7 @@ def trace_embedding_call(
     duration: float,
     tokens: int,
     provider: str = "",
+    session_id: str | None = None,
     start_time: datetime | None = None,
     end_time: datetime | None = None,
 ) -> None:
@@ -117,6 +118,7 @@ def trace_embedding_call(
         input_preview = input_text[:200] if isinstance(input_text, str) else str(input_text[:2])[:200]
         trace = client.trace(
             name="embedding-call",
+            session_id=session_id,
             metadata={"provider": provider},
         )
 
